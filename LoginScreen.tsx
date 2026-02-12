@@ -1,109 +1,180 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  StyleSheet, 
+  Alert, 
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Dimensions
+} from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GlobalStyles } from '../theme/GlobalStyles';
 import { Colors } from '../theme/colors';
 import { authService } from '../services/auth.service';
+
+const { width } = Dimensions.get('window');
 
 const LoginScreen = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+  const [secureText, setSecureText] = useState(true);
 
   const handleLogin = async () => {
-    // 1. Basic Validation
     if (!email || !password) {
-      Alert.alert("Input Required", "Please enter both email and password.");
+      Alert.alert("Missing Info", "Please provide both email and password.");
       return;
     }
 
     setLoading(true);
-    
-    // 2. Authenticate via Supabase
     const { user, error } = await authService.signIn(email, password);
-    
-    setLoading(false);
 
     if (error) {
-      // Handles the 'Security Lock' lockout from your logs
+      setLoading(false);
       Alert.alert("Access Denied", error);
     } else if (user) {
-      // 3. Navigate to Dashboard (ensure the name matches RootNavigator)
-      navigation.replace('Dashboard');
+      setLoading(false);
+      // navigation.replace ensures the user can't go back to login
+      navigation.replace('Dashboard'); 
     }
   };
 
   return (
-    <View style={GlobalStyles.container}>
-      <View style={styles.logoContainer}>
-        <Text style={styles.brandName}>STACHY</Text>
-        <Text style={styles.tagline}>Smart Mold Risk Intelligence</Text>
-      </View>
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+      style={styles.container}
+    >
+      <View style={styles.innerContainer}>
+        {/* Branding Section */}
+        <View style={styles.headerSection}>
+          <View style={styles.logoGlow}>
+            <MaterialCommunityIcons name="shield-search" size={60} color={Colors.primary} />
+          </View>
+          <Text style={styles.brandTitle}>STACHY</Text>
+          <Text style={styles.brandSubtitle}>Environmental Risk Intelligence</Text>
+        </View>
 
-      <View style={styles.form}>
-        <TextInput
-          style={GlobalStyles.input}
-          placeholder="Email address"
-          placeholderTextColor={Colors.subtitle}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
+        {/* Glassmorphism Form Card */}
+        <View style={styles.formCard}>
+          <Text style={styles.inputLabel}>IDENTIFICATION</Text>
+          <View style={styles.inputWrapper}>
+            <MaterialCommunityIcons name="email-outline" size={20} color={Colors.primary} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="operator@stachy.com"
+              placeholderTextColor="#4B5563"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
 
-        <View style={styles.passwordWrapper}>
-          <TextInput
-            style={[GlobalStyles.input, { flex: 1 }]}
-            placeholder="Password"
-            placeholderTextColor={Colors.subtitle}
-            secureTextEntry={!showPassword}
-            value={password}
-            onChangeText={setPassword}
-          />
+          <Text style={styles.inputLabel}>SECURITY KEY</Text>
+          <View style={styles.inputWrapper}>
+            <MaterialCommunityIcons name="lock-outline" size={20} color={Colors.primary} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="••••••••"
+              placeholderTextColor="#4B5563"
+              secureTextEntry={secureText}
+              value={password}
+              onChangeText={setPassword}
+            />
+            <TouchableOpacity onPress={() => setSecureText(!secureText)}>
+              <MaterialCommunityIcons 
+                name={secureText ? "eye-off-outline" : "eye-outline"} 
+                size={20} 
+                color={Colors.subtitle} 
+              />
+            </TouchableOpacity>
+          </View>
+
           <TouchableOpacity 
-            style={styles.showBtnWrapper} 
-            onPress={() => setShowPassword(!showPassword)}
+            style={[styles.loginButton, loading && styles.buttonDisabled]} 
+            onPress={handleLogin}
+            disabled={loading}
           >
-            <Text style={styles.showBtn}>{showPassword ? 'HIDE' : 'SHOW'}</Text>
+            {loading ? (
+              <ActivityIndicator color="#000" />
+            ) : (
+              <Text style={styles.loginButtonText}>INITIATE ACCESS</Text>
+            )}
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity 
-          style={[GlobalStyles.button, loading && { opacity: 0.7 }]} 
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#000" />
-          ) : (
-            <Text style={GlobalStyles.buttonText}>ACCESS DASHBOARD</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.footer} 
-          onPress={() => navigation.navigate('Signup')}
-        >
-          <Text style={styles.footerText}>
-            New to STACHY? <Text style={styles.linkText}>Create account</Text>
-          </Text>
-        </TouchableOpacity>
+        {/* Footer Actions */}
+        <View style={styles.footer}>
+          <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+            <Text style={styles.footerText}>
+              Need credentials? <Text style={styles.linkText}>Register Node</Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  logoContainer: { alignItems: 'center', marginTop: 80, marginBottom: 50 },
-  brandName: { fontSize: 48, fontWeight: '900', color: Colors.primary, letterSpacing: 8 },
-  tagline: { fontSize: 16, color: Colors.text, marginTop: 10, opacity: 0.8 },
-  form: { marginTop: 20 },
-  passwordWrapper: { flexDirection: 'row', alignItems: 'center' },
-  showBtnWrapper: { position: 'absolute', right: 15, top: 15 },
-  showBtn: { color: Colors.primary, fontWeight: '700', fontSize: 12 },
+  container: { flex: 1, backgroundColor: '#030712' },
+  innerContainer: { flex: 1, padding: 25, justifyContent: 'center' },
+  headerSection: { alignItems: 'center', marginBottom: 50 },
+  logoGlow: {
+    padding: 20,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+  },
+  brandTitle: { color: '#FFF', fontSize: 32, fontWeight: '900', letterSpacing: 6, marginTop: 20 },
+  brandSubtitle: { color: Colors.subtitle, fontSize: 12, fontWeight: '600', letterSpacing: 1.5 },
+  formCard: {
+    backgroundColor: 'rgba(31, 41, 55, 0.5)',
+    borderRadius: 24,
+    padding: 25,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  inputLabel: { color: Colors.primary, fontSize: 10, fontWeight: '800', letterSpacing: 2, marginBottom: 8, marginLeft: 5 },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F172A',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    height: 55,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#1E293B'
+  },
+  inputIcon: { marginRight: 12 },
+  input: { flex: 1, color: '#FFF', fontSize: 15 },
+  loginButton: {
+    backgroundColor: Colors.primary,
+    height: 60,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5
+  },
+  buttonDisabled: { opacity: 0.6 },
+  loginButtonText: { color: '#000', fontWeight: '900', fontSize: 16, letterSpacing: 1 },
   footer: { marginTop: 30, alignItems: 'center' },
-  footerText: { color: Colors.text, fontSize: 14 },
-  linkText: { color: Colors.primary, fontWeight: '700' }
+  footerText: { color: Colors.subtitle, fontSize: 14 },
+  linkText: { color: Colors.primary, fontWeight: '800' }
 });
 
 export default LoginScreen;

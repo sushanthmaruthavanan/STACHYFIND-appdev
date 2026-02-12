@@ -1,135 +1,133 @@
-// src/screens/DevicesScreen.tsx
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  FlatList, 
+  TouchableOpacity, 
+  ActivityIndicator,
+  Alert 
+} from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GlobalStyles } from '../theme/GlobalStyles';
 import { Colors } from '../theme/colors';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-
-// Backend Service Only
-import { deviceService } from '../services/device.service'; 
+import { deviceService } from '../services/device.service';
 
 const DevicesScreen = ({ navigation }: any) => {
+  const [devices, setDevices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  
-  // State for Cloud Monitoring (device.service.ts)
-  const [cloudInfo, setCloudInfo] = useState({ online: false, lastSeen: 'Connecting...' });
-
-  const syncWithBackend = async () => {
-    const status = await deviceService.getDeviceStatus();
-    setCloudInfo(status);
-    setLoading(false);
-    setRefreshing(false);
-  };
 
   useEffect(() => {
-    syncWithBackend();
+    loadDevices();
   }, []);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    syncWithBackend();
+  const loadDevices = async () => {
+    setLoading(true);
+    const { data, error } = await deviceService.getMyDevices();
+    if (error) {
+      Alert.alert("Sync Error", "Could not retrieve your devices.");
+    } else {
+      setDevices(data || []);
+    }
+    setLoading(false);
   };
+
+  const renderDevice = ({ item }: { item: any }) => (
+    <View style={styles.deviceCard}>
+      <View style={styles.iconCircle}>
+        <MaterialCommunityIcons 
+          name="router-wireless" 
+          size={24} 
+          color={item.status === 'online' ? Colors.primary : Colors.subtitle} 
+        />
+      </View>
+      <View style={styles.deviceInfo}>
+        <Text style={styles.deviceName}>{item.device_name}</Text>
+        <Text style={styles.deviceId}>ID: {item.hardware_id}</Text>
+      </View>
+      <View style={styles.statusGroup}>
+        <View style={[styles.statusDot, item.status === 'online' && styles.statusOnline]} />
+        <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
+      </View>
+    </View>
+  );
 
   return (
     <View style={GlobalStyles.container}>
-      <ScrollView 
-        contentContainerStyle={GlobalStyles.scrollContent} 
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
-        }
-      >
-        
-        {/* BACK TO HUB LINK */}
-        <TouchableOpacity onPress={() => navigation.navigate('Dashboard')} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={Colors.primary} />
-          <Text style={styles.backText}>COMMAND HUB</Text>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <MaterialCommunityIcons name="chevron-left" size={32} color={Colors.primary} />
         </TouchableOpacity>
+        <Text style={styles.title}>MY DEVICES</Text>
+        <TouchableOpacity onPress={loadDevices}>
+          <MaterialCommunityIcons name="refresh" size={24} color={Colors.primary} />
+        </TouchableOpacity>
+      </View>
 
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={GlobalStyles.title}>Devices</Text>
-            <Text style={GlobalStyles.subtitle}>Network Status Registry</Text>
-          </View>
-        </View>
-
-        {loading ? (
-          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />
-        ) : (
-          <View>
-            {/* MAIN CLOUD INTEGRITY CARD */}
-            <View style={[GlobalStyles.card, styles.cloudCard]}>
-              <View style={styles.row}>
-                <MaterialCommunityIcons 
-                  name={cloudInfo.online ? "server-network" : "server-network-off"} 
-                  size={28} 
-                  color={cloudInfo.online ? Colors.success : Colors.danger} 
-                />
-                <View style={{ marginLeft: 15 }}>
-                  <Text style={[styles.statusTitle, { color: cloudInfo.online ? Colors.success : Colors.danger }]}>
-                    {cloudInfo.online ? 'SYSTEM ONLINE' : 'SYSTEM OFFLINE'}
-                  </Text>
-                  <Text style={styles.statusText}>
-                    Last Heartbeat: {cloudInfo.lastSeen}
-                  </Text>
-                </View>
-              </View>
+      {loading ? (
+        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />
+      ) : (
+        <FlatList
+          data={devices}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderDevice}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <MaterialCommunityIcons name="bluetooth-audio" size={60} color="#1E3A56" />
+              <Text style={styles.emptyText}>No devices linked to your account.</Text>
             </View>
+          }
+        />
+      )}
 
-            {/* DEVICE DETAILS CARD */}
-            <View style={GlobalStyles.card}>
-              <Text style={GlobalStyles.cardSubtitle}>Node Information</Text>
-              
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Identifier</Text>
-                <Text style={styles.detailValue}>ESP32-STACHY-01</Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Connection Type</Text>
-                <Text style={styles.detailValue}>Wi-Fi (WPA2)</Text>
-              </View>
-
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Database Sync</Text>
-                <Text style={[styles.detailValue, { color: Colors.success }]}>Active</Text>
-              </View>
-            </View>
-            
-            <Text style={styles.hintText}>Pull down to manually refresh node status</Text>
-          </View>
-        )}
-
-      </ScrollView>
+      <TouchableOpacity 
+        style={styles.scanButton}
+        onPress={() => Alert.alert("Bluetooth Scan", "Searching for nearby Stachy nodes...")}
+      >
+        <MaterialCommunityIcons name="plus" size={24} color="#000" />
+        <Text style={styles.scanButtonText}>ADD NEW DEVICE</Text>
+      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 25 },
-  backText: { color: Colors.primary, fontWeight: '900', fontSize: 11, marginLeft: 5, letterSpacing: 1.5 },
-  headerRow: { marginBottom: 30 },
-  cloudCard: { 
-    backgroundColor: 'rgba(255,255,255,0.02)', 
-    padding: 20, 
-    marginBottom: 20, 
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.primary
-  },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  statusTitle: { fontSize: 18, fontWeight: '900', letterSpacing: 1 },
-  statusText: { color: Colors.subtitle, fontSize: 13, marginTop: 4 },
-  detailRow: { 
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 20 },
+  title: { color: Colors.primary, fontSize: 18, fontWeight: '900', letterSpacing: 2 },
+  deviceCard: { 
     flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    paddingVertical: 12, 
-    borderBottomWidth: 1, 
-    borderBottomColor: 'rgba(255,255,255,0.05)' 
+    alignItems: 'center', 
+    backgroundColor: '#0B1E2D', 
+    padding: 20, 
+    borderRadius: 16, 
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#1E3A56'
   },
-  detailLabel: { color: Colors.subtitle, fontSize: 14 },
-  detailValue: { color: Colors.text, fontSize: 14, fontWeight: 'bold' },
-  hintText: { color: Colors.subtitle, fontSize: 12, textAlign: 'center', marginTop: 20, fontStyle: 'italic' }
+  iconCircle: { width: 45, height: 45, borderRadius: 23, backgroundColor: '#071521', justifyContent: 'center', alignItems: 'center' },
+  deviceInfo: { flex: 1, marginLeft: 15 },
+  deviceName: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  deviceId: { color: Colors.subtitle, fontSize: 11, marginTop: 2 },
+  statusGroup: { alignItems: 'flex-end' },
+  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.subtitle, marginBottom: 4 },
+  statusOnline: { backgroundColor: '#10B981' },
+  statusText: { color: Colors.subtitle, fontSize: 9, fontWeight: '800' },
+  emptyContainer: { alignItems: 'center', marginTop: 100 },
+  emptyText: { color: Colors.subtitle, marginTop: 20, textAlign: 'center' },
+  scanButton: { 
+    position: 'absolute', 
+    bottom: 30, 
+    left: 20, 
+    right: 20, 
+    backgroundColor: Colors.primary, 
+    flexDirection: 'row', 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    padding: 18,
+    borderRadius: 15
+  },
+  scanButtonText: { color: '#000', fontWeight: '900', marginLeft: 10, letterSpacing: 1 }
 });
 
 export default DevicesScreen;

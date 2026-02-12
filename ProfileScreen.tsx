@@ -1,42 +1,50 @@
-// src/screens/ProfileScreen.tsx
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView, ActivityIndicator } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  Alert 
+} from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GlobalStyles } from '../theme/GlobalStyles';
 import { Colors } from '../theme/colors';
 import { profileService } from '../services/profile.service';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { authService } from '../services/auth.service';
 
 const ProfileScreen = ({ navigation }: any) => {
+  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState({ email: '', full_name: '' });
 
   useEffect(() => {
     loadProfile();
   }, []);
 
   const loadProfile = async () => {
-    try {
-      const data = await profileService.getUserProfile();
-      if (data) {
-        setProfile({
-          email: data.email || '',
-          full_name: data.full_name || 'Stachy User',
-        });
-      }
-    } catch (error: any) {
-      console.error(error.message);
-    } finally {
-      setLoading(false);
+    setLoading(true);
+    const { data, error } = await profileService.getProfile();
+    
+    if (error) {
+      Alert.alert("Error", "Could not load profile information.");
+    } else {
+      setProfile(data);
     }
+    setLoading(false);
   };
 
   const handleSignOut = async () => {
-    try {
-      await profileService.signOut();
-      navigation.replace('Login');
-    } catch (error: any) {
-      Alert.alert('Error signing out', error.message);
-    }
+    Alert.alert("Sign Out", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
+      { 
+        text: "Log Out", 
+        onPress: async () => {
+          await authService.signOut();
+          navigation.replace('Login'); 
+        },
+        style: "destructive"
+      }
+    ]);
   };
 
   if (loading) {
@@ -49,98 +57,80 @@ const ProfileScreen = ({ navigation }: any) => {
 
   return (
     <View style={GlobalStyles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        
-        {/* Profile Header */}
-        <View style={styles.header}>
-          <View style={styles.avatarCircle}>
-            <MaterialCommunityIcons name="account" size={60} color={Colors.primary} />
-          </View>
-          <Text style={styles.profileName}>{profile.full_name}</Text>
-          <Text style={styles.emailText}>{profile.email}</Text>
+      {/* Profile Header */}
+      <View style={styles.header}>
+        <View style={styles.avatarCircle}>
+          <Text style={styles.avatarText}>
+            {profile?.fullName?.charAt(0).toUpperCase() || 'U'}
+          </Text>
         </View>
+        <Text style={styles.userName}>{profile?.fullName}</Text>
+        <Text style={styles.userEmail}>{profile?.email}</Text>
+      </View>
 
-        {/* Account Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account Information</Text>
-          
-          <View style={GlobalStyles.card}>
-            <Text style={GlobalStyles.cardSubtitle}>Full Name</Text>
-            <TextInput 
-              style={styles.editableInput}
-              value={profile.full_name}
-              onChangeText={(txt) => setProfile({...profile, full_name: txt})}
-              placeholderTextColor={Colors.subtitle}
-            />
-          </View>
-
-          {/* Menu Options */}
-          <TouchableOpacity style={styles.menuItem}>
-            <MaterialCommunityIcons name="bell-ring-outline" size={24} color={Colors.primary} />
-            <Text style={styles.menuText}>Push Notifications</Text>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.subtitle} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem}>
-            <MaterialCommunityIcons name="shield-lock-outline" size={24} color={Colors.primary} />
-            <Text style={styles.menuText}>Security & Privacy</Text>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.subtitle} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Logout Button */}
-        <TouchableOpacity 
-          style={styles.logoutButton} 
-          onPress={handleSignOut}
-        >
-          <MaterialCommunityIcons name="logout" size={20} color={Colors.danger} />
-          <Text style={styles.logoutText}>LOG OUT</Text>
+      {/* Settings Options */}
+      <View style={styles.menu}>
+        <TouchableOpacity style={styles.menuItem}>
+          <MaterialCommunityIcons name="account-edit" size={24} color={Colors.primary} />
+          <Text style={styles.menuText}>Edit Profile</Text>
         </TouchableOpacity>
 
-      </ScrollView>
+        <TouchableOpacity style={styles.menuItem}>
+          <MaterialCommunityIcons name="shield-lock" size={24} color={Colors.primary} />
+          <Text style={styles.menuText}>Security Settings</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.menuItem} onPress={loadProfile}>
+          <MaterialCommunityIcons name="refresh" size={24} color={Colors.primary} />
+          <Text style={styles.menuText}>Refresh Data</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Logout Action */}
+      <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
+        <MaterialCommunityIcons name="logout" size={20} color="#EF4444" />
+        <Text style={styles.logoutText}>TERMINATE SESSION</Text>
+      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   centered: { justifyContent: 'center', alignItems: 'center' },
-  scrollContent: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 40 },
-  header: { alignItems: 'center', marginBottom: 30 },
+  header: { alignItems: 'center', marginTop: 40, marginBottom: 40 },
   avatarCircle: { 
     width: 100, 
     height: 100, 
     borderRadius: 50, 
-    backgroundColor: Colors.cardBackground, 
+    backgroundColor: Colors.primary, 
     justifyContent: 'center', 
     alignItems: 'center',
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)'
+    marginBottom: 15
   },
-  profileName: { fontSize: 24, fontWeight: 'bold', color: Colors.text },
-  emailText: { color: Colors.subtitle, fontSize: 14, marginTop: 4 },
-  section: { marginTop: 10 },
-  sectionTitle: { color: Colors.primary, fontSize: 16, fontWeight: '700', marginBottom: 15 },
-  editableInput: { color: Colors.text, fontSize: 18, fontWeight: '600', marginTop: 5 },
+  avatarText: { fontSize: 40, fontWeight: '900', color: '#000' },
+  userName: { fontSize: 24, fontWeight: '800', color: '#FFF' },
+  userEmail: { fontSize: 14, color: Colors.subtitle, marginTop: 5 },
+  menu: { marginTop: 20 },
   menuItem: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    backgroundColor: Colors.cardBackground, 
+    backgroundColor: '#0B1E2D', 
     padding: 18, 
     borderRadius: 15, 
-    marginBottom: 12 
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#1E3A56'
   },
-  menuText: { flex: 1, color: Colors.text, fontSize: 16, marginLeft: 15, fontWeight: '500' },
+  menuText: { color: '#FFF', marginLeft: 15, fontSize: 16, fontWeight: '600' },
   logoutButton: { 
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', 
+    alignItems: 'center', 
     justifyContent: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)', 
-    padding: 16, 
-    borderRadius: 15, 
-    marginTop: 20 
+    marginTop: 'auto', 
+    marginBottom: 40,
+    padding: 20
   },
-  logoutText: { color: Colors.danger, fontSize: 16, fontWeight: 'bold', marginLeft: 10 }
+  logoutText: { color: '#EF4444', fontWeight: '800', marginLeft: 10, letterSpacing: 1 }
 });
 
 export default ProfileScreen;

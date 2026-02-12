@@ -1,26 +1,43 @@
 import { supabase } from '../lib/supabase';
 
 export const deviceService = {
-  getDeviceStatus: async () => {
-    const { data, error } = await supabase
-      .from('sensor_readings')
-      .select('created_at')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+  /**
+   * Fetches all devices registered to the current user.
+   */
+  getMyDevices: async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { data: [], error: "Not authenticated" };
 
-    if (error || !data) return { online: false, lastSeen: 'N/A' };
+      const { data, error } = await supabase
+        .from('devices')
+        .select('*')
+        .eq('owner_id', user.id)
+        .order('last_online', { ascending: false });
 
-    const lastSeenDate = new Date(data.created_at);
-    const now = new Date();
+      return { data, error: error?.message };
+    } catch (err) {
+      return { data: [], error: "Database connection failed" };
+    }
+  },
+
+  /**
+   * Registers a new Stachy node found via Bluetooth.
+   */
+  registerDevice: async (deviceName: string, hardwareId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
     
-    // Calculate difference in minutes. If > 5 mins, hardware is offline.
-    const diffInMinutes = (now.getTime() - lastSeenDate.getTime()) / 60000;
+    const { data, error } = await supabase
+      .from('devices')
+      .upsert({
+        owner_id: user?.id,
+        device_name: deviceName,
+        hardware_id: hardwareId,
+        status: 'online',
+        last_online: new Date().toISOString()
+      })
+      .select();
 
-    return {
-      online: diffInMinutes < 5,
-      lastSeen: lastSeenDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      timestamp: data.created_at
-    };
+    return { data, error: error?.message };
   }
 };

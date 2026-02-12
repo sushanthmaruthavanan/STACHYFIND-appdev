@@ -1,14 +1,21 @@
-// src/screens/AlertsScreen.tsx
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  FlatList, 
+  TouchableOpacity, 
+  ActivityIndicator,
+  Alert 
+} from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GlobalStyles } from '../theme/GlobalStyles';
 import { Colors } from '../theme/colors';
-import { alertService, AlertType } from '../services/alert.service'; 
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { alertService } from '../services/alert.service';
 
-const AlertsScreen = () => {
+const AlertsScreen = ({ navigation }: any) => {
+  const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [alerts, setAlerts] = useState<AlertType[]>([]);
 
   useEffect(() => {
     loadAlerts();
@@ -16,115 +23,98 @@ const AlertsScreen = () => {
 
   const loadAlerts = async () => {
     setLoading(true);
-    try {
-      const data = await alertService.getAlertHistory();
-      
-      if (data && data.length > 0) {
-        setAlerts(data);
-      } else {
-        // Correctly typed Mock Data as a fallback
-        const mockAlerts: any[] = [
-          { id: '1', title: 'High Mold Risk Detected', msg: 'Humidity and temperature favor mold growth.', type: 'high', created_at: new Date().toISOString() },
-          { id: '2', title: 'High Humidity Alert', msg: 'Humidity crossed 80%.', type: 'medium', created_at: new Date().toISOString() },
-          { id: '3', title: 'Temperature Warning', msg: 'Temperature above safe indoor range.', type: 'medium', created_at: new Date().toISOString() },
-          { id: '4', title: 'Sensor Disconnected', msg: 'ESP32 device not responding.', type: 'high', created_at: new Date().toISOString() },
-        ];
-        setAlerts(mockAlerts);
-      }
-    } catch (error) {
+    const { data, error } = await alertService.getAlerts();
+    if (error) {
       console.error(error);
-    } finally {
-      setLoading(false);
+    } else {
+      setAlerts(data || []);
+    }
+    setLoading(false);
+  };
+
+  const handleAcknowledge = async (id: string) => {
+    const { error } = await alertService.acknowledgeAlert(id);
+    if (!error) {
+      setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: 'read' } : a));
     }
   };
 
-  const getAlertStyle = (type: string) => {
-    switch(type) {
-      case 'high': return { color: Colors.danger, icon: 'alert-circle' };
-      case 'medium': return { color: Colors.warning, icon: 'alert' };
-      default: return { color: Colors.success, icon: 'check-circle' };
-    }
-  };
+  const renderAlert = ({ item }: { item: any }) => {
+    const isCritical = item.severity === 'critical';
+    const isRead = item.status === 'read';
 
-  if (loading) {
     return (
-      <View style={[GlobalStyles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
+      <TouchableOpacity 
+        style={[styles.alertCard, isRead && styles.alertRead]}
+        onPress={() => handleAcknowledge(item.id)}
+      >
+        <View style={[styles.severityBar, { backgroundColor: isCritical ? '#EF4444' : '#FBBF24' }]} />
+        <View style={styles.alertContent}>
+          <View style={styles.alertHeader}>
+            <Text style={styles.alertTitle}>{item.title}</Text>
+            <Text style={styles.alertTime}>{new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+          </View>
+          <Text style={styles.alertDesc}>{item.message}</Text>
+        </View>
+        {!isRead && <View style={styles.unreadDot} />}
+      </TouchableOpacity>
     );
-  }
+  };
 
   return (
     <View style={GlobalStyles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.title}>Alerts</Text>
-            <Text style={styles.subtitle}>Mold & Environment Notifications</Text>
-          </View>
-          <TouchableOpacity onPress={loadAlerts} style={styles.refreshBtn}>
-             <MaterialCommunityIcons name="refresh" size={20} color={Colors.primary} />
-          </TouchableOpacity>
-        </View>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <MaterialCommunityIcons name="chevron-left" size={32} color={Colors.primary} />
+        </TouchableOpacity>
+        <Text style={styles.title}>NOTIFICATIONS</Text>
+        <TouchableOpacity onPress={loadAlerts}>
+          <MaterialCommunityIcons name="check-all" size={24} color={Colors.primary} />
+        </TouchableOpacity>
+      </View>
 
-        {alerts.map((item) => {
-          const style = getAlertStyle(item.type);
-          return (
-            <TouchableOpacity key={item.id} style={styles.alertCard} activeOpacity={0.7}>
-              <View style={[styles.indicator, { backgroundColor: style.color }]} />
-              <View style={styles.iconContainer}>
-                <MaterialCommunityIcons name={style.icon as any} size={28} color={style.color} />
-              </View>
-              <View style={styles.textContainer}>
-                <View style={styles.titleRow}>
-                  <Text style={styles.alertTitle} numberOfLines={1}>{item.title}</Text>
-                  <View style={[styles.badge, { backgroundColor: style.color + '20' }]}>
-                    <Text style={[styles.badgeText, { color: style.color }]}>{item.type.toUpperCase()}</Text>
-                  </View>
-                </View>
-                <Text style={styles.alertMsg}>{item.msg}</Text>
-                <Text style={styles.alertTime}>
-                  {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent'}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-
-      </ScrollView>
+      {loading ? (
+        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />
+      ) : (
+        <FlatList
+          data={alerts}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderAlert}
+          contentContainerStyle={{ paddingBottom: 40 }}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <MaterialCommunityIcons name="bell-off-outline" size={60} color="#1E3A56" />
+              <Text style={styles.emptyText}>No active alerts detected.</Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  centered: { justifyContent: 'center', alignItems: 'center' },
-  scrollContent: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 40 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 25 },
-  title: { fontSize: 32, fontWeight: 'bold', color: Colors.text },
-  subtitle: { fontSize: 14, color: Colors.subtitle, marginTop: 4 },
-  refreshBtn: { backgroundColor: Colors.cardBackground, padding: 10, borderRadius: 10 },
-  
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 20 },
+  title: { color: Colors.primary, fontSize: 18, fontWeight: '900', letterSpacing: 2 },
   alertCard: { 
-    backgroundColor: Colors.cardBackground, 
-    borderRadius: 18, 
     flexDirection: 'row', 
-    padding: 16, 
-    marginBottom: 15,
+    backgroundColor: '#0B1E2D', 
+    borderRadius: 16, 
+    marginBottom: 12, 
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    position: 'relative',
-    overflow: 'hidden'
+    borderColor: '#1E3A56'
   },
-  indicator: { width: 4, height: '60%', position: 'absolute', left: 0, top: '20%', borderTopRightRadius: 4, borderBottomRightRadius: 4 },
-  iconContainer: { justifyContent: 'center', marginRight: 15 },
-  textContainer: { flex: 1 },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
-  alertTitle: { color: Colors.text, fontSize: 16, fontWeight: 'bold', flex: 1, marginRight: 10 },
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  badgeText: { fontSize: 10, fontWeight: '800' },
-  alertMsg: { color: Colors.subtitle, fontSize: 13, lineHeight: 18 },
-  alertTime: { color: Colors.subtitle, fontSize: 11, marginTop: 8, opacity: 0.6 }
+  alertRead: { opacity: 0.6, borderColor: 'transparent' },
+  severityBar: { width: 6 },
+  alertContent: { flex: 1, padding: 16 },
+  alertHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  alertTitle: { color: '#FFF', fontSize: 15, fontWeight: '800' },
+  alertTime: { color: Colors.subtitle, fontSize: 11 },
+  alertDesc: { color: Colors.subtitle, fontSize: 13, lineHeight: 18 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary, alignSelf: 'center', marginRight: 15 },
+  emptyContainer: { alignItems: 'center', marginTop: 100 },
+  emptyText: { color: Colors.subtitle, marginTop: 20, textAlign: 'center' }
 });
 
 export default AlertsScreen;

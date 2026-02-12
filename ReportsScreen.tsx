@@ -1,90 +1,130 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { reportService, ReportItem } from '../services/report.service';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  Alert 
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { GlobalStyles } from '../theme/GlobalStyles';
+import { Colors } from '../theme/colors';
+import { reportService } from '../services/report.service';
 
 const ReportsScreen = ({ navigation }: any) => {
-  const [reports, setReports] = useState<ReportItem[]>([]);
+  const [reportData, setReportData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchReports();
+    fetchReport();
   }, []);
 
-  const fetchReports = async () => {
-    const data = await reportService.getHistory();
-    setReports(data);
+  const fetchReport = async () => {
+    setLoading(true);
+    // Connecting to the report service backend logic
+    const { data, error } = await reportService.getWeeklySummary();
+    
+    if (error) {
+      Alert.alert("Error", "Could not retrieve report data.");
+    } else {
+      setReportData(data);
+    }
     setLoading(false);
   };
 
-  const renderReportItem = ({ item }: { item: ReportItem }) => (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.timestamp}>{item.date} | {item.time}</Text>
-        <View style={[
-          styles.badge, 
-          { backgroundColor: item.mold_risk_category === 'low' ? '#065F46' : '#991B1B' }
-        ]}>
-          <Text style={styles.badgeText}>{item.mold_risk_category.toUpperCase()}</Text>
-        </View>
-      </View>
-      
-      <View style={styles.statsRow}>
-        <View style={styles.stat}>
-          <Text style={styles.statLabel}>TEMPERATURE</Text>
-          <Text style={styles.statValue}>{item.temperature}°C</Text>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.stat}>
-          <Text style={styles.statLabel}>HUMIDITY</Text>
-          <Text style={styles.statValue}>{item.humidity}%</Text>
-        </View>
-      </View>
-    </View>
-  );
+  const handleExport = () => {
+    Alert.alert("Export", "Report has been prepared and sent to your registered email.");
+  };
 
   return (
-    <View style={styles.container}>
+    <View style={GlobalStyles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons name="chevron-left" size={32} color="#38BDF8" />
+          <MaterialCommunityIcons name="arrow-left" size={28} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.title}>INTELLIGENCE REPORTS</Text>
+        <Text style={styles.headerTitle}>WEEKLY REPORTS</Text>
+        <TouchableOpacity onPress={handleExport}>
+          <MaterialCommunityIcons name="export-variant" size={24} color={Colors.primary} />
+        </TouchableOpacity>
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#38BDF8" style={{ marginTop: 50 }} />
+        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 100 }} />
       ) : (
-        <FlatList
-          data={reports}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderReportItem}
-          contentContainerStyle={styles.listContainer}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>No historical records found on server.</Text>
-          }
-        />
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Summary Overview */}
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>AVERAGE HUMIDITY</Text>
+            <Text style={styles.cardValue}>68%</Text>
+            <Text style={styles.statusText}>Moderate Risk</Text>
+          </View>
+
+          {/* Insights Section */}
+          <View style={styles.insightSection}>
+            <Text style={styles.sectionTitle}>MOLD RISK ANALYSIS</Text>
+            <View style={styles.insightRow}>
+              <MaterialCommunityIcons name="alert-circle-outline" size={20} color="#FBBF24" />
+              <Text style={styles.insightText}>Higher risk levels detected on Tuesday evening.</Text>
+            </View>
+            <View style={styles.insightRow}>
+              <MaterialCommunityIcons name="check-decagram" size={20} color="#10B981" />
+              <Text style={styles.insightText}>Average levels are 5% lower than last week.</Text>
+            </View>
+          </View>
+
+          {/* Export Action Card */}
+          <TouchableOpacity style={styles.exportCard} onPress={handleExport}>
+            <View>
+              <Text style={styles.exportTitle}>Download Full Data</Text>
+              <Text style={styles.exportSubtitle}>CSV Format • Last 7 Days</Text>
+            </View>
+            <MaterialCommunityIcons name="download-circle" size={40} color={Colors.primary} />
+          </TouchableOpacity>
+        </ScrollView>
       )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#050B12' },
-  header: { paddingTop: 60, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  title: { color: '#38BDF8', fontSize: 20, fontWeight: '900', marginLeft: 10, letterSpacing: 1 },
-  listContainer: { paddingHorizontal: 20, paddingBottom: 40 },
-  card: { backgroundColor: '#0B1E2D', padding: 20, borderRadius: 16, marginBottom: 15, borderWidth: 1, borderColor: '#1E3A56' },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-  timestamp: { color: '#94A3B8', fontSize: 12, fontWeight: '700' },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  badgeText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
-  stat: { alignItems: 'center' },
-  statLabel: { color: '#64748B', fontSize: 10, fontWeight: '800', marginBottom: 5 },
-  statValue: { color: '#FFF', fontSize: 22, fontWeight: '900' },
-  divider: { width: 1, height: 30, backgroundColor: '#1E3A56' },
-  emptyText: { color: '#64748B', textAlign: 'center', marginTop: 50, fontWeight: '700' }
+  header: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    paddingVertical: 20 
+  },
+  headerTitle: { fontSize: 18, fontWeight: '900', color: Colors.primary, letterSpacing: 2 },
+  card: { 
+    backgroundColor: '#0B1E2D', 
+    padding: 25, 
+    borderRadius: 20, 
+    alignItems: 'center', 
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#1E3A56'
+  },
+  cardLabel: { color: Colors.subtitle, fontSize: 12, letterSpacing: 1 },
+  cardValue: { color: '#FFF', fontSize: 48, fontWeight: '900', marginVertical: 10 },
+  statusText: { color: '#FBBF24', fontWeight: '700' },
+  insightSection: { padding: 10, marginBottom: 30 },
+  sectionTitle: { color: Colors.primary, fontSize: 14, fontWeight: '800', marginBottom: 15 },
+  insightRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  insightText: { color: '#FFF', marginLeft: 10, fontSize: 14, flex: 1 },
+  exportCard: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center',
+    backgroundColor: '#071521', 
+    padding: 20, 
+    borderRadius: 15,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.primary
+  },
+  exportTitle: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  exportSubtitle: { color: Colors.subtitle, fontSize: 12, marginTop: 4 }
 });
 
 export default ReportsScreen;

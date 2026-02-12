@@ -1,42 +1,36 @@
 import { supabase } from '../lib/supabase';
 
 export const profileService = {
-  // Get current user session and profile data
-  getUserProfile: async () => {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) return null;
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
-    if (error) {
-      console.error('Profile fetch error:', error.message);
-      return { email: user.email, full_name: 'User' }; // Fallback
+  /**
+   * Fetches the current user's profile information from metadata
+   */
+  getProfile: async () => {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error) return { data: null, error: error.message };
+      
+      // Returns metadata like full_name stored during signup
+      return { 
+        data: {
+          email: user?.email,
+          fullName: user?.user_metadata?.full_name || 'Stachy User',
+          id: user?.id
+        }, 
+        error: null 
+      };
+    } catch (err) {
+      return { data: null, error: "Initialization failed. Check network." };
     }
-
-    return { email: user.email, ...data };
   },
 
-  // Update Full Name
-  updateProfileName: async (fullName: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('No user logged in');
-
-    const { error } = await supabase
-      .from('profiles')
-      .update({ full_name: fullName, updated_at: new Date() })
-      .eq('id', user.id);
-
-    if (error) throw error;
-  },
-
-  // Sign out logic
-  signOut: async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+  /**
+   * Updates user metadata (e.g., changing display name)
+   */
+  updateProfile: async (newName: string) => {
+    const { data, error } = await supabase.auth.updateUser({
+      data: { full_name: newName.trim() }
+    });
+    return { data, error: error?.message };
   }
 };

@@ -1,24 +1,31 @@
 import { supabase } from '../lib/supabase';
 
-export interface AlertType {
-  id: string;
-  title: string;
-  msg: string;
-  type: 'high' | 'medium' | 'low';
-  created_at: string;
-}
-
 export const alertService = {
-  getAlertHistory: async (): Promise<AlertType[]> => {
+  /**
+   * Fetches all alerts for the user, prioritizing 'active' status.
+   */
+  getAlerts: async () => {
+    try {
+      const { data, error } = await supabase
+        .from('alerts')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      return { data, error: error?.message };
+    } catch (err) {
+      return { data: [], error: "Alert system sync failed." };
+    }
+  },
+
+  /**
+   * Marks a specific alert as acknowledged/read.
+   */
+  acknowledgeAlert: async (alertId: string) => {
     const { data, error } = await supabase
       .from('alerts')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .update({ status: 'read' })
+      .eq('id', alertId);
 
-    if (error) {
-      console.error('Alert Engine Error:', error.message);
-      return [];
-    }
-    return data as AlertType[];
+    return { data, error: error?.message };
   }
 };
